@@ -1,11 +1,10 @@
 var cameraWV = null;
 var cameraRed = null;
-var cameraYellow = null;
-var cameraBlue = null;
-var cameraRV = null;
+var cameraOrtho = null;
+var cameraAR = null;
 var cameraOV = null;
 
-var cameraIndex = 0.0;
+var cameraIndex = 1;
 
 var target : Transform;
 
@@ -20,68 +19,72 @@ function Start () {
 		Debug.Log("Red camera not found.");	
 	}
 	
-	cameraYellow = GameObject.Find("Yellow Camera");
-	if(cameraYellow == null){
-		Debug.Log("Yellow camera not found.");	
+	cameraOrtho = GameObject.Find("Ortho Camera");
+	if(cameraOrtho == null){
+		Debug.Log("Ortho camera not found.");	
 	}
 	
-	cameraBlue = GameObject.Find("Blue Camera");
-	if(cameraBlue == null){
-		Debug.Log("Blue camera not found.");	
-	}
-	
-	cameraRV = GameObject.Find("Reverse Camera");
-	if(cameraRV == null){
-		Debug.Log("Reverse camera not found.");	
+	cameraAR = GameObject.Find("airRobot Camera");
+	if(cameraAR == null){
+		Debug.Log("airRobot camera not found.");	
 	}
 	
 	cameraOV = GameObject.Find("Overhead Camera");
 	if(cameraOV == null){
 		Debug.Log("Overhead camera not found.");	
 	}
+	
+	cameraWV.camera.active = true;
+    cameraRed.camera.active = false;
+    cameraOrtho.camera.active = false;
+    cameraAR.camera.active = false;
+    cameraOV.camera.active = false;
 }
 
 function Update () {
-	if(Input.GetKey(KeyCode.Keypad0)){
-		cameraIndex = 0;
-	}
-	if(Input.GetKey(KeyCode.Keypad1)){
-		cameraIndex = 1;	
-	}
-	if(Input.GetKey(KeyCode.Keypad2)){
-		cameraIndex = 2;	
-	}
-	if(Input.GetKey(KeyCode.Keypad3)){
-		cameraIndex = 3;	
-	}
-	if(Input.GetKey(KeyCode.Keypad4)){
-		cameraIndex = 4;	
-	}
-	if(Input.GetKey(KeyCode.Keypad5)){
-		cameraIndex = 5;	
-	}
-	
-	if(cameraWV != null){
-		cameraWV.camera.enabled = (cameraIndex == 0);	
-	}	
-	if(cameraRed != null){
-		cameraRed.transform.LookAt(target);
-		cameraRed.camera.enabled = (cameraIndex == 1);	
-	}
-	if(cameraYellow != null){
-		cameraYellow.transform.LookAt(target);
-		cameraYellow.camera.enabled = (cameraIndex == 2);	
-	}
-	if(cameraBlue != null){
-		cameraBlue.transform.LookAt(target);
-		cameraBlue.camera.enabled = (cameraIndex == 3);	
-	}
-	if(cameraRV != null){
-		cameraRV.camera.enabled = (cameraIndex == 4);	
-	}
-	if(cameraOV != null){
-		cameraOV.camera.enabled = (cameraIndex == 5);	
-	}
+
+    if (Input.GetKeyDown(KeyCode.Space)) {
+    	cameraIndex = cameraIndex + 1;
+		switch(cameraIndex)
+		{
+		case 1:
+		  	cameraWV.camera.active = false;
+		    cameraRed.camera.active = true;
+		    cameraOrtho.camera.active = false;
+		    cameraAR.camera.active = false;
+		    cameraOV.camera.active = false;
+		  break;
+		case 2:
+		  	cameraWV.camera.active = false;
+		    cameraRed.camera.active = false;
+		    cameraOrtho.camera.active = true;
+		    cameraAR.camera.active = false;
+		    cameraOV.camera.active = false;
+		  break;
+		case 3:
+		  	cameraWV.camera.active = false;
+		    cameraRed.camera.active = false;
+		    cameraOrtho.camera.active = false;
+		    cameraAR.camera.active = true;
+		    cameraOV.camera.active = false;
+		  break;
+		case 4:
+		  	cameraWV.camera.active = false;
+		    cameraRed.camera.active = false;
+		    cameraOrtho.camera.active = false;
+		    cameraAR.camera.active = false;
+		    cameraOV.camera.active = true;
+		  break;
+		default:
+			cameraWV.camera.active = true;
+		    cameraRed.camera.active = false;
+		    cameraOrtho.camera.active = false;
+		    cameraAR.camera.active = false;
+		    cameraOV.camera.active = false;
+		    cameraIndex = 0;
+		}
+    }
+
 }
 
 
