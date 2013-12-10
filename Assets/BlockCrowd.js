@@ -19,10 +19,7 @@ var ambient : AudioClip;
 
 //target variables
 var currentTarget : Transform;
-//var builtin : Transform[];
-var bodies : Array;
 var targets : Array;
-var numBodies = 3.0;
 
 // UAV variables
 var xIS;
@@ -68,50 +65,7 @@ var vertVar = 1;
 
 //define animation behaviors
 function Start() {
-	
-	// If there are any objects recorded in the bodies array, destroy them.
-	// I'm not entirely sure that this is necessary.
-	for(body in bodies)
-	{
-		Destroy(body);
-	}
-	
-	// (Re)initialize the bodies array.
-	bodies = new Array();
-	
-	var num_people = 30;
-	for(var i = 0; i < num_people; i++)
-	{
-		// Create a new cylinder.
-		var person : GameObject
-			= GameObject.CreatePrimitive(PrimitiveType.Cylinder);
-	
-		// Adjust the cylinder properties.
-		
-		// Decide on a position.
-		var pos_dist_center = Vector3(0, 0.15, -19);
-		var pos_dist_range = Vector3(20, 0, 0.5);
-		var uniform_variate = Vector3(Random.value, Random.value, Random.value);
-		person.transform.position = Vector3(
-			pos_dist_range.x * uniform_variate.x + pos_dist_center.x - pos_dist_range.x / 2.0,
-			pos_dist_range.y * uniform_variate.y + pos_dist_center.y - pos_dist_range.y / 2.0,
-			pos_dist_range.z * uniform_variate.z + pos_dist_center.z - pos_dist_range.z / 2.0
-		);
-		
-		// Set the scale.
-		person.transform.localScale = Vector3(0.3, 0.3, 0.3);
-		
-		// Assign the PersonMove script to the created person to put it under script control.
-		// The JS engine gives each script its own type.
-		person.AddComponent(PersonMove);
-		
-		// Record the cylinder in the bodies array.
-		bodies.Add(person);
-	}
-	
-	// Clone the bodies array into the targets array.
-	targets = new Array(bodies);
-	
+    
 	spin = animation["Spin"];
 	spin.layer = 1;
 	spin.blendMode = AnimationBlendMode.Additive;
@@ -119,13 +73,10 @@ function Start() {
 	spin.speed = 2.0;
 	
 	targetsAboveLine = new Array ();
-	currentTarget = targets[0].transform;
-	
-	dist = guardLine - currentTarget.transform.position.z;
 }
 
 function Update () {
-	
+
 	//	Perceptual Schema Calls
 	
 	findSelf();
@@ -137,9 +88,13 @@ function Update () {
 	//	Subsumption Coordination Function
 	if(currentTarget == null){
 		state = "watching";
-		targetpos = 0.0;	
-	}else{
+		targetpos = 0.0;
+        
+        dist = 100;
+	} else {
 
+        dist = guardLine - currentTarget.transform.position.z;
+    
 		state = "watching";
 		if(targetpos < bound1){
 			state = "approaching";
@@ -193,29 +148,36 @@ function Update () {
 
 
 // Determines how many bodies are there and selects the one closest to the door
-function findCrowd(){
-		targets = bodies;
-		if(targets.length > 0){
-		var closest = targets[0].transform;
-		var pos = 100;
-		var curPos = 0; 
-		//determine closest z-value
-		for (var body in targets)
-		{
-			curPos = Mathf.Sqrt(Mathf.Pow(body.transform.position.x-xIS,2) + Mathf.Pow(body.transform.position.y-yIS,2) + Mathf.Pow(body.transform.position.z-zIS,2));
-			if(curPos < pos)
-			{
-				closest = body.transform;
-				pos = curPos;
-			}
-		}
-		
-		currentTarget = closest;
-	
-		targetpos = Mathf.Sqrt(Mathf.Pow(currentTarget.transform.position.x-xIS,2) + Mathf.Pow(currentTarget.transform.position.y-yIS,2) + Mathf.Pow(currentTarget.transform.position.z-zIS,2));
-		
-	}
+function findCrowd() {
 
+    // Make sure targets contains all game objects with tag crowd-member
+    if(targets == null)
+        targets = GameObject.FindGameObjectsWithTag("crowd-member");
+
+    if(targets.length > 0) {
+        var closest = targets[0].transform;
+        var pos = 100;
+        var curPos = 0; 
+
+        //determine closest z-value
+        for (var body in targets)
+        {
+            curPos = Mathf.Sqrt(Mathf.Pow(body.transform.position.x-xIS,2) + Mathf.Pow(body.transform.position.y-yIS,2) + Mathf.Pow(body.transform.position.z-zIS,2));
+            if(curPos < pos)
+            {
+                closest = body.transform;
+                pos = curPos;
+            }
+        }
+        
+        currentTarget = closest;
+
+        targetpos = Mathf.Sqrt(Mathf.Pow(currentTarget.transform.position.x-xIS,2) + Mathf.Pow(currentTarget.transform.position.y-yIS,2) + Mathf.Pow(currentTarget.transform.position.z-zIS,2));
+
+    }
+    else {
+        currentTarget = null;
+    }
 }
 
 // Locates the UAV (Would be replaced with the Hokuyo)
@@ -265,7 +227,7 @@ function hover() {
 		movement.x = 0.0;
 	}
 	
-	transform.Translate(movement.x, 0, 0, currentTarget.transform);
+	transform.Translate(movement.x, 0, 0);
 	transform.eulerAngles = Vector3(0, 0, -zRotation);
 	
 	if(movement.x == 0.0)

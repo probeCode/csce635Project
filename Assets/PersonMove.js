@@ -1,14 +1,7 @@
-//speed variables
-var speed = 0.5;
 
-//movement variables
-var startPos = Vector3.zero;
-var trans = 0.0;
-var xMove = 0.0;
-var zMove = 0.0;
+var velocity : Vector3;
+var new_velocity : Vector3;
 
-//target variables
-var target : Transform;
 var goBack = false;
 
 //position variables
@@ -21,70 +14,122 @@ var uav_blockers : Array;
 
 function Start()
 {
-//	random returns a float f such that 0 <= f <= 1
-	var rand = Random.value;
-//	movement in x direction
-//	transform into a value between -.5 and .5 (+/- 45 degrees)
-	trans = rand - 0.5;
-
-//	determine random speed (at least 0.3 so it's not completely tedious)
-	rand = Random.value;
-	speed = rand + 0.3;
-
-	//determine random starting position within bounding box
-//	 -2 < x < 2
-//	 -11 < z < -10
-	rand = Random.value;
-	var startX = 15*rand - 7.5;
-	rand = Random.value;
-	var startZ = -4*rand - 12;
-	startPos = new Vector3(startX, 0.33, startZ);
-	transform.position = startPos;
+    // Set an initial random velocity towards the line.
+    new_velocity = Vector3(
+        3 * Random.value - 1.5,
+        0,
+        3 * Random.value + 0.1
+    );
 	
-	// Find each uav in the simulation and add them to the blocker list.
-	uav_blockers = new Array();
-	uav_blockers.Add(GameObject.Find("/airrobotJ_2-1"));
-	uav_blockers.Add(GameObject.Find("/airrobotJ_2-2"));
-	uav_blockers.Add(GameObject.Find("/airrobotJ_2-3"));
+	// Find all uavs in the simulation -- all installed uavs are tagged with
+    // the "uav-blocker" tag.
+	uav_blockers = GameObject.FindGameObjectsWithTag("uav-blocker");  
 }
-function Update () {
-	//determines tilt-ness	xMove = trans * Time.deltaTime * speed;
-	//move forward in z direction	zMove = 1.0 * Time.deltaTime * speed;
-	var pos = 100;
-	
-	//determine distance between me and closest robot
-	
-	for (var uav_blocker in uav_blockers)
-	{
-		sqrLen = (uav_blocker.transform.position - transform.position).sqrMagnitude;
-	
-		if(sqrLen < pos)
-		{
-			pos = sqrLen;
-			target = uav_blocker.transform;
-		}	
-	}
-	
-	sqrLen = pos;
-	
-	if( sqrLen < bound3 && !goBack){
-		zMove += -.125 * Time.deltaTime * speed;
-	}
-	if( sqrLen < bound2 && !goBack){
-		zMove += -.25 * Time.deltaTime * speed;
-	}
-	if( sqrLen < bound3 || goBack){
-		//too scared = leave
-		xMove = 0.0;
-		zMove = -0.5 * Time.deltaTime * speed;
-		
-		//stop at back wall
-		if(transform.position.z >= -14){			transform.Translate(xMove, 0, zMove);
-		}
-		
-		goBack = true;
-	}
+function Update ()
+{
+    velocity = new_velocity;
+
+    // Find all other people in the simulation -- all installed people have
+    // the "crowd-member" tag.  This is not the most efficient way in the world
+    // to perform flocking, but whatever.
+    var crowd_members = GameObject.FindGameObjectsWithTag("crowd-member");
+    
+    // Filter crowd members by distance to this crowd member.
+    var neighbors = new Array();
+    for(candidate in crowd_members)
+    {
+        var distance
+            = (candidate.transform.position - transform.position).magnitude;
+    
+        if(distance > 0.1 && distance < 10)
+        {
+            neighbors.Add(candidate);
+        }
+    }
+    
+    // Filter the uavs by distance.
+    var uav_neighbors = new Array();
+    for(candidate in uav_blockers)
+    {
+        distance
+            = (candidate.transform.position - transform.position).magnitude;
+            
+        if(distance > 0.01 && distance < 7)
+        {
+            uav_neighbors.Add(candidate);
+        }
+    }
+    
+    //
+    // Flock over neighbors and uav_neighbors.
+    // 
+    
+    // Perform velocity matching with neighbors.
+    var new_speed = 0.0;
+    if(neighbors.length > 0)
+    {
+        for(neighbor in neighbors)
+        {
+            new_speed = new_speed
+                + neighbor.GetComponent(PersonMove).velocity.magnitude;
+        }
+        
+        new_speed = (new_speed / neighbors.length);
+        
+        // Take the average of our current speed and the new speed suggested by
+        // our neighbors.
+        new_speed = (new_speed + velocity.magnitude) / 2.0;
+    }
+    else
+    {
+        // If no neighbors are in range, take the average of our current speed
+        // and a base speed that a calm person would walk at.  The net effect
+        // will be to slow the person down to the base speed slowly.  This
+        // simulates people calming down as they get out of the crowd.
+        new_speed = (velocity.magnitude + 1) / 2.0;
+    }
+    
+    // Peform heading matching with neighbors.
+    var new_heading : Vector3 = Vector3(0,0,0);
+    if(neighbors.length > 0)
+    {
+        var neighbor_position = Vector3(0,0,0);
+        for(neighbor in neighbors)
+        {
+            neighbor_position
+                += transform.position - neighbor.transform.position;
+        
+            new_heading = new_heading
+                + neighbor.GetComponent(PersonMove).velocity.normalized;
+        }
+        new_heading = new_heading.normalized;
+        neighbor_position = neighbor_position.normalized;
+        
+        // Take the average between our current heading and the suggested
+        // heading.
+        new_heading
+            = (
+                new_heading + 2 * neighbor_position + velocity.normalized
+                + 2 * Vector3(0, 0, 1)
+            ).normalized;
+    }
+    else
+    {
+        // If no neighbors are in range, gradually turn towards the line (+Z).
+        var plus_z = Vector3(0, 0, 1);
+        new_heading = (velocity.normalized + plus_z).normalized;
+    }
+    
+    // Overall suggestion from the matching component of flocking.
+    var match_velocity = new_speed * new_heading;
+
+    
+    // Get the new velocity that results from flocking.
+    new_velocity = new_speed * new_heading;
+    
+    // Update our position.
+    transform.Translate(Time.deltaTime * velocity);
 	
 	//stop at back wall
-	if(transform.position.z < 0.9){		transform.Translate(xMove, 0, zMove);
-	}}
+	// if(transform.position.z < 0.9){		// transform.Translate(xMove, 0, zMove);
+	// }}
