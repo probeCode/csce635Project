@@ -12,9 +12,9 @@ var target : Transform;
 var goBack = false;
 
 //position variables
-var intimate = 0.46;
-var personal = 1.22;
-var social = 3.66;
+var bound1 = 0.46;
+var bound2 = 1.22;
+var bound3 = 3.66;
 var sqrLen = 0.0;
 
 function Start(){

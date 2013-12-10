@@ -1,11 +1,21 @@
+// Vechicle Selection
+var arNum : int;
+var leftObj : GameObject;
+var rightObj : GameObject;
+
+
 //guard line definition
 var ZUpperBound = -5.4;
 var ZLowerBound = -5.6;
-var YUpperBound = 1.0;
-var YLowerBound = 0.9;
+var YUpperBound = 1.5;
+var YLowerBound = 0.5;
 
 //animation variables
-private var spin : AnimationState;
+var spin : AnimationState;
+//audio Variables
+var goAway : AudioClip;
+var stayBack : AudioClip;
+var ambient : AudioClip;
 
 //target variables
 var currentTarget : Transform;
@@ -14,17 +24,32 @@ var bodies : Array;
 var targets : Array;
 var numBodies = 3.0;
 
+// UAV variables
+var xIS;
+var yIS;
+var zIS;
+var leftDist;
+var rightDist;
+
 //proximity variables
-var ignore = ZLowerBound - 4;
-var social = ZLowerBound - 3.66;
-var personal = ZLowerBound - 1.22;
-var intimate = ZLowerBound - 0.46;
+var ignore = 5;
+var bound1 = 5;
+var bound2 = 2;
 var guardLine = ZUpperBound;
-var stopThreshold = ZUpperBound + 3;
+var stopThreshold = ZUpperBound-.1;
 
 //state
-var state = "ignore";
+var state = "watching";
 var dist = 0.0;
+var targetpos = 0.0;
+
+//Reporting Stuff
+var outString;
+var sText;
+var textObject : GameObject;
+sText = textObject.GetComponent(GUIText);
+outString = "State: " + state.ToString();
+sText.text = outString.ToString();
 
 //rotation variables
 var rotation = Vector3.zero;
@@ -35,14 +60,16 @@ var maxTilt = 15.0;
 //movement variables
 var movement = Vector3.zero;
 var moveSpeed = 2.0;
+var sideBound = 1.0;
 var followDistance = 0.6;
 var keepAliveSpeed = .01;
 var goingup = false;
+var vertVar = 1;
 
 //define animation behaviors
 function Start() {
 	var rand = Random.value;
-	//numBodies = rand*3;
+	numBodies = rand*3;
 	numBodies = 3;
 	
 	spin = animation["Spin"];
@@ -80,136 +107,300 @@ function Start() {
 }
 
 function Update () {
-	animation.CrossFade("Spin");
 	
-	updateState();
+	//	Perceptual Schema Calls
 	
-	dist = guardLine - currentTarget.transform.position.z;
+	findSelf();
 	
-	if(state == "calm"){
-		findLine();
-		maxTilt = Mathf.Abs((10-5)/(personal-social) * dist);
-		moveSpeed = (1-.5)/(personal-social) * dist;
-		followDistance = Mathf.Abs((1-2)/(personal-social) * dist);
-		YUpperBound = 1.0;
-		YLowerBound = 0.9;
-		stalk();
-		keepAliveSpeed = .001; //const
-		keepAlive();
+	findBounds();
+	
+	findCrowd();
+	
+	//	Subsumption Coordination Function
+	if(currentTarget == null){
+		state = "watching";
+		targetpos = 0.0;	
+	}else{
+
+		state = "watching";
+		if(targetpos < bound1){
+			state = "approaching";
+		}
+		if(targetpos < bound2){
+			state = "threatening";
+		}
 	}
-	if(state == "caution"){
-		findLine();
-		maxTilt = 10.0; //const
-		moveSpeed = (2-1)/(intimate-personal) * dist;
-		followDistance = Mathf.Abs((.5-1)/(intimate-personal) * dist);
+	 
+	// Motor Schema Calls
+	if(state == "approaching"){
+		audio.clip = goAway;
+		maxTilt = 5; //const
+		moveSpeed = 3;
+		followDistance = 0.3*Mathf.Abs((.1)/(bound2-bound1) * dist);
 		YUpperBound = 0.9;
 		YLowerBound = 0.8;
-		stalk();
-		keepAliveSpeed = .001; //const
-		keepAlive();
-	}
-	if(state == "aggressive"){
-		findLine();
+		follow();
+	}else if(state == "threatening"){
+		audio.clip = stayBack;
 		maxTilt = 10.0; //const
-		moveSpeed = 2.0; //const
-		followDistance = 0.5; //const
-		YUpperBound = 0.6;
+		moveSpeed = 4.0; //const
+		followDistance = 0.1; //const
+		YUpperBound = 1.0;
 		YLowerBound = 0.5;
-		stalk();
-		keepAliveSpeed = .001; //const
-		keepAlive();
-	}
-	if(state == "ignore"){
-		if(currentTarget.transform == null){
-			maxTilt = 0.0;
-		}
-		else{
-			maxTilt = Mathf.Abs((5-0)/(social-ignore) * dist);
-		}
-		moveSpeed = 0.5; //const
-		followDistance = 2.0; //const
+		block();
+	}else{
+		audio.clip = ambient;
+		maxTilt = 3;
+		moveSpeed = 1; //const
+		followDistance = 0.3; //const
 		YUpperBound = 1.0;
 		YLowerBound = 0.9;
-		findLine();
-		stabilize();
-		keepAliveSpeed = .001; //const
-		keepAlive();
+		hover();
 	}
+
+	// Unity Engine Stuff
+	// Text Outpt
+	outString = "State " + arNum.ToString() + ": " + state.ToString() + "\nDistance: " + targetpos.ToString();
+	sText.text = outString.ToString();
+	// Audio
+	if(audio.isPlaying){	
+	}else{
+	audio.Play();
+	}
+	// Flight Bobbing Animation 
+	keepAliveSpeed = .001; //const
+	keepAlive();
 }
 
-function updateState(){
-	findTargets();
-	
-	if(targets.length > 0){
+
+
+// Determines how many bodies are there and selects the one closest to the door
+function findCrowd(){
+		targets = bodies;
+		if(targets.length > 0){
 		var closest = targets[0].transform;
-		var pos = targets[0].transform.position.z;
-	
+		var pos = 100;
+		var curPos = 0; 
 		//determine closest z-value
 		for (var body in targets)
 		{
-			if(body.transform.position.z > pos)
+			curPos = Mathf.Sqrt(Mathf.Pow(body.transform.position.x-xIS,2) + Mathf.Pow(body.transform.position.y-yIS,2) + Mathf.Pow(body.transform.position.z-zIS,2));
+			if(curPos < pos)
 			{
-				pos = body.transform.position.z;
 				closest = body.transform;
-			}	
+				pos = curPos;
+			}
 		}
-	}
+		
+		currentTarget = closest;
 	
-	currentTarget = closest;
-	
-	targetpos = currentTarget.transform.position.z;
-	
-	state = "ignore";
-	
-	if(targetpos > social){
-		state = "calm";
+		targetpos = Mathf.Sqrt(Mathf.Pow(currentTarget.transform.position.x-xIS,2) + Mathf.Pow(currentTarget.transform.position.y-yIS,2) + Mathf.Pow(currentTarget.transform.position.z-zIS,2));
+		
 	}
-	if(targetpos > personal){
-		state = "caution";
-	}
-	if(targetpos > intimate){
-		state = "aggressive";
-	}
-	if(targetpos > stopThreshold){
-		state = "ignore";
-	}
-	if(currentTarget == null){
-		state = "ignore";	
-	}
+
 }
 
-//removes the current target from the list of targets
-function removeCurrent(){
-	var it = 0.0;
-	var currentTargetpos = 0.0;
+// Locates the UAV (Would be replaced with the Hokuyo)
+function findSelf(){
+	xIS = transform.position.x;
+	yIS = transform.position.y;
+	zIS = transform.position.z;
+
+}
+
+// Locates obsticles near the UAV (Would be replaced with an onboard Hokuyo or something)
+function findBounds(){
+	leftDist = xIS - leftObj.transform.position.x;
+    rightDist = xIS - rightObj.transform.position.x;
+}
+
+
+function hover() {
 	
-	//determine position of current target in target array
-	for (var body in targets)
+	var diffx = -rightDist + -leftDist;
+	
+	var tiltAroundZ = Input.GetAxis("Horizontal");
+	
+	//keep from tipping over
+	if(zRotation > maxTilt)
 	{
-		if(body.transform == currentTarget)
-		{
-			currentTargetPos = it;
-		}
-		it += 1;	
+		zRotation = maxTilt;
+	}
+	if(zRotation < -maxTilt)
+	{
+		zRotation = -maxTilt;
+	}
+	//keep within follow distance (x)
+	if(diffx < -followDistance)
+	{
+		movement.x = Time.deltaTime * -moveSpeed;
+		zRotation -= 1;
+	}
+	else if(diffx > followDistance)
+	{
+		movement.x = Time.deltaTime * moveSpeed;
+		zRotation += 1;
+	}
+	else 
+	{
+		tiltAroundZ = Input.GetAxis("Horizontal");
+		movement.x = 0.0;
+	}
+	
+	transform.Translate(movement.x, 0, 0, currentTarget.transform);
+	transform.eulerAngles = Vector3(0, 0, -zRotation);
+	
+	if(movement.x == 0.0)
+	{
+		transform.eulerAngles = Vector3(0, 0, 0);
+	}
+	
+}
+
+
+//follow target in x and z directions
+function follow() {
+	var tx = currentTarget.position.x;
+	
+	var diffx = tx - xIS;
+	
+	var tiltAroundZ = Input.GetAxis("Horizontal");
+	
+	//keep from tipping over
+	if(zRotation > maxTilt)
+	{
+		zRotation = maxTilt;
+	}
+	if(zRotation < -maxTilt)
+	{
+		zRotation = -maxTilt;
+	}
+	
+	//keep within follow distance (x)
+	if(diffx < -followDistance)
+	{
+		movement.x = Time.deltaTime * -moveSpeed;
+		zRotation -= 1;
+	}
+	else if(diffx > followDistance)
+	{
+		movement.x = Time.deltaTime * moveSpeed;
+		zRotation += 1;
+	}
+	else 
+	{
+		tiltAroundZ = Input.GetAxis("Horizontal");
+		movement.x = 0.0;
+	}
+	
+	if(Mathf.Abs(movement.x+leftDist)<sideBound){
+		movement.x = 0.0;
+	}
+	if(Mathf.Abs(movement.x+rightDist)<sideBound){
+		movement.x = 0.0;
 	}	
 	
-	targets.RemoveAt(currentTargetpos);
+	transform.Translate(movement.x, 0, 0, currentTarget.transform);
+	transform.eulerAngles = Vector3(0, 0, -zRotation);
+	
+	if(movement.x == 0.0)
+	{
+		transform.eulerAngles = Vector3(0, 0, 0);
+	}
 }
 
-//determines how many bodies are current targets
-function findTargets(){
-	var newTargets = new Array ();
-	var newTargetsAboveLine = new Array ();
+
+//follow only in x direction
+function block(){
+	var tx = currentTarget.position.x;
+
+	var diffx = tx - xIS;
 	
-	for (var body in bodies)
+	var tiltAroundZ = Input.GetAxis("Horizontal");
+	
+	//keep from tipping over
+	if(zRotation > maxTilt)
 	{
-		if(body.transform.position.z < guardLine && body.transform.position.z > social)
-		{
-			newTargets.Push(body);
-		}
+		zRotation = maxTilt;
+	}
+	if(zRotation < -maxTilt)
+	{
+		zRotation = -maxTilt;
 	}
 	
-	targets = newTargets;
+	
+	//keep within follow distance (x)
+	if(diffx < -followDistance)
+	{
+		movement.x = Time.deltaTime * -moveSpeed;
+		zRotation += 1;
+	}
+	else if(diffx > followDistance)
+	{
+		movement.x = Time.deltaTime * moveSpeed;
+		zRotation -= 1;
+	}
+	else 
+	{
+		tiltAroundZ = Input.GetAxis("Horizontal");
+		movement.x = 0.0;
+	}
+	
+	if(Mathf.Abs(movement.x+leftDist)<sideBound){
+		movement.x = 0.0;
+	}
+	if(Mathf.Abs(movement.x+rightDist)<sideBound){
+		movement.x = 0.0;
+	}
+	
+	//keep x value, but rotate forward
+	if(xRotation > -maxTilt){
+		xRotation -= 1;	
+	}
+	
+	transform.Translate(movement.x, movement.y, 0, currentTarget.transform);
+	
+	movement.y = 0.3*vertVar*Time.deltaTime * moveSpeed;
+	
+	if(yIS < YLowerBound){
+		vertVar = 1;
+	}else if(yIS > YUpperBound){
+		vertVar = -1;
+	}
+	
+	transform.eulerAngles = Vector3(0, 0, zRotation);
+	
+	if(movement.x == 0.0)
+	{
+		transform.eulerAngles = Vector3(0, 0, 0);
+	}
+	
+}
+
+//this defines keep alive behavior - bobbing up and down
+function keepAlive(){
+	findLine();
+
+	if(yIS > YUpperBound){
+		transform.Translate(0,-keepAliveSpeed,0);
+		goingup = false;
+	}
+	if(yIS < YLowerBound){
+		transform.Translate(0,keepAliveSpeed,0);
+		goingup = true;
+	}
+	if(yIS < YUpperBound && yIS > YLowerBound){
+		if(goingup){
+			transform.Translate(0,keepAliveSpeed,0);
+			if(yIS >= YUpperBound)
+				goingup = false;
+		}
+		if(!goingup){
+			transform.Translate(0, -keepAliveSpeed,0);
+			if(yIS <= YLowerBound)
+				goingup = true;
+		}
+	}
 }
 
 //this tells the robot to move to the z-position specified by the z-bounds
@@ -222,166 +413,6 @@ function findLine(){
 	}
 	if(transform.position.z > ZUpperBound){
 		controller.Move(new Vector3(0,0,-.01));
-	}
-}
-
-//follow target in x and z directions
-function follow() {
-	var tx = currentTarget.position.x;
-	var tz = currentTarget.position.z;
-	
-	var myx = transform.position.x;
-	var myz = transform.position.z;
-	
-	var diffx = tx - myx;
-	var diffz = tz - myz;
-	
-	var tiltAroundZ = Input.GetAxis("Horizontal");
-	var tiltAroundX = Input.GetAxis("Vertical") ;
-	
-	//keep from tipping over
-	if(zRotation > maxTilt)
-	{
-		zRotation = maxTilt;
-	}
-	if(zRotation < -maxTilt)
-	{
-		zRotation = -maxTilt;
-	}
-	if(xRotation > maxTilt)
-	{
-		xRotation = maxTilt;
-	}
-	if(xRotation < -maxTilt)
-	{
-		xRotation = -maxTilt;	
-	}
-	
-	//keep within follow distance (x)
-	if(diffx < -followDistance)
-	{
-		movement.x = Time.deltaTime * -moveSpeed;
-		zRotation -= 1;
-	}
-	else if(diffx > followDistance)
-	{
-		movement.x = Time.deltaTime * moveSpeed;
-		zRotation += 1;
-	}
-	else 
-	{
-		tiltAroundZ = Input.GetAxis("Horizontal");
-		movement.x = 0.0;
-	}
-	
-	//keep within follow distance (z)
-	if(diffz < -followDistance)
-	{
-		movement.z = Time.deltaTime * -moveSpeed;
-		xRotation -= 1;
-	}
-	else if(diffz > followDistance)
-	{
-		movement.z = Time.deltaTime * moveSpeed;
-		xRotation += 1;
-	}
-	else
-	{
-		tiltAroundX = Input.GetAxis("Vertical") ;
-		movement.z = 0.0;
-	}
-	
-	transform.Translate(movement.x, 0, movement.z, currentTarget.transform);
-	transform.eulerAngles = Vector3(xRotation, 0, zRotation);
-}
-
-
-//follow only in x direction
-function stalk(){
-	var tx = currentTarget.position.x;
-	var tz = currentTarget.position.z;
-	
-	var myx = transform.position.x;
-	var myz = transform.position.z;
-	
-	var diffx = tx - myx;
-	var diffz = tz - myz;
-	
-	var tiltAroundZ = Input.GetAxis("Horizontal");
-	var tiltAroundX = Input.GetAxis("Vertical") ;
-	
-	//keep from tipping over
-	if(zRotation > maxTilt)
-	{
-		zRotation = maxTilt;
-	}
-	if(zRotation < -maxTilt)
-	{
-		zRotation = -maxTilt;
-	}
-	if(xRotation > maxTilt)
-	{
-		xRotation = maxTilt;
-	}
-	if(xRotation < -maxTilt)
-	{
-		xRotation = -maxTilt;	
-	}
-	
-	//keep within follow distance (x)
-	if(diffx < -followDistance)
-	{
-		movement.x = Time.deltaTime * -moveSpeed;
-		zRotation += 1;
-	}
-	else if(diffx > followDistance)
-	{
-		movement.x = Time.deltaTime * moveSpeed;
-		zRotation -= 1;
-	}
-	else 
-	{
-		tiltAroundZ = Input.GetAxis("Horizontal");
-		movement.x = 0.0;
-	}
-	
-	//keep x value, but rotate forward
-	if(xRotation > -maxTilt){
-		xRotation -= 1;	
-	}
-	
-	transform.Translate(movement.x, 0, 0, currentTarget.transform);
-	transform.eulerAngles = Vector3(xRotation, 0, zRotation);
-}
-
-
-//this resets the robot's tilt and height to normal
-function stabilize(){
-	transform.eulerAngles = Vector3(0,0,0);
-}
-
-//this defines keep alive behavior - bobbing up and down
-function keepAlive(){
-	//Social distance: idle movement for when the person is far away
-	if(transform.position.y > YUpperBound){
-		transform.Translate(0,-keepAliveSpeed,0);
-		goingup = false;
-	}
-	if(transform.position.y < YLowerBound){
-		transform.Translate(0,keepAliveSpeed,0);
-		goingup = true;
-	}
-	if(transform.position.y < YUpperBound && transform.position.y > YLowerBound){
-		if(goingup){
-			transform.Translate(0,keepAliveSpeed,0);
-			if(transform.position.y >= YUpperBound)
-				goingup = false;
-		}
-		if(!goingup){
-			transform.Translate(0, -keepAliveSpeed,0);
-			if(transform.position.y <= YLowerBound)
-				goingup = true;
-		}
 	}
 }
 
