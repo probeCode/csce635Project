@@ -17,9 +17,10 @@ var bound2 = 1.22;
 var bound3 = 3.66;
 var sqrLen = 0.0;
 
-var bodies : Array;
+var uav_blockers : Array;
 
-function Start(){
+function Start()
+{
 //	random returns a float f such that 0 <= f <= 1
 	var rand = Random.value;
 //	movement in x direction
@@ -40,11 +41,11 @@ function Start(){
 	startPos = new Vector3(startX, 0.33, startZ);
 	transform.position = startPos;
 	
-		bodies = new Array();
-		bodies.Add(GameObject.Find("/airrobotJ_2-1"));
-		bodies.Add(GameObject.Find("/airrobotJ_2-2"));
-		bodies.Add(GameObject.Find("/airrobotJ_2-3"));
-	
+	// Find each uav in the simulation and add them to the blocker list.
+	uav_blockers = new Array();
+	uav_blockers.Add(GameObject.Find("/airrobotJ_2-1"));
+	uav_blockers.Add(GameObject.Find("/airrobotJ_2-2"));
+	uav_blockers.Add(GameObject.Find("/airrobotJ_2-3"));
 }
 function Update () {
 	//determines tilt-ness	xMove = trans * Time.deltaTime * speed;
@@ -53,16 +54,16 @@ function Start(){
 	
 	//determine distance between me and closest robot
 	
-		for (var body in bodies)
+	for (var uav_blocker in uav_blockers)
+	{
+		sqrLen = (uav_blocker.transform.position - transform.position).sqrMagnitude;
+	
+		if(sqrLen < pos)
 		{
-			sqrLen = (body.transform.position - transform.position).sqrMagnitude;
-		
-			if(sqrLen < pos)
-			{
-				pos = sqrLen;
-				target = body.transform;
-			}	
-		}
+			pos = sqrLen;
+			target = uav_blocker.transform;
+		}	
+	}
 	
 	sqrLen = pos;
 	

@@ -68,37 +68,55 @@ var vertVar = 1;
 
 //define animation behaviors
 function Start() {
-	var rand = Random.value;
-	numBodies = rand*3;
-	numBodies = 3;
+	
+	// If there are any objects recorded in the bodies array, destroy them.
+	// I'm not entirely sure that this is necessary.
+	for(body in bodies)
+	{
+		Destroy(body);
+	}
+	
+	// (Re)initialize the bodies array.
+	bodies = new Array();
+	
+	var num_people = 30;
+	for(var i = 0; i < num_people; i++)
+	{
+		// Create a new cylinder.
+		var person : GameObject
+			= GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+	
+		// Adjust the cylinder properties.
+		
+		// Decide on a position.
+		var pos_dist_center = Vector3(0, 0.15, -19);
+		var pos_dist_range = Vector3(20, 0, 0.5);
+		var uniform_variate = Vector3(Random.value, Random.value, Random.value);
+		person.transform.position = Vector3(
+			pos_dist_range.x * uniform_variate.x + pos_dist_center.x - pos_dist_range.x / 2.0,
+			pos_dist_range.y * uniform_variate.y + pos_dist_center.y - pos_dist_range.y / 2.0,
+			pos_dist_range.z * uniform_variate.z + pos_dist_center.z - pos_dist_range.z / 2.0
+		);
+		
+		// Set the scale.
+		person.transform.localScale = Vector3(0.3, 0.3, 0.3);
+		
+		// Assign the PersonMove script to the created person to put it under script control.
+		// The JS engine gives each script its own type.
+		person.AddComponent(PersonMove);
+		
+		// Record the cylinder in the bodies array.
+		bodies.Add(person);
+	}
+	
+	// Clone the bodies array into the targets array.
+	targets = new Array(bodies);
 	
 	spin = animation["Spin"];
 	spin.layer = 1;
 	spin.blendMode = AnimationBlendMode.Additive;
 	spin.wrapMode = WrapMode.Loop;
 	spin.speed = 2.0;
-	
-	if(numBodies <= 1){
-		bodies = new Array();
-		bodies.Add(GameObject.Find("/Red"));
-		Destroy(GameObject.Find("/Blue"));
-		Destroy(GameObject.Find("/Yellow"));
-		targets = new Array(bodies);
-	}
-	if(numBodies <= 2 && numBodies > 1){
-		bodies = new Array();
-		bodies.Add(GameObject.Find("/Red"));
-		bodies.Add(GameObject.Find("/Yellow"));
-		Destroy(GameObject.Find("/Blue"));
-		targets = new Array(bodies);
-	}
-	if(numBodies <= 3 && numBodies > 2){
-		bodies = new Array();
-		bodies.Add(GameObject.Find("/Red"));
-		bodies.Add(GameObject.Find("/Yellow"));
-		bodies.Add(GameObject.Find("/Blue"));
-		targets = new Array(bodies);
-	}
 	
 	targetsAboveLine = new Array ();
 	currentTarget = targets[0].transform;
