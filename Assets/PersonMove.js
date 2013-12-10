@@ -136,11 +136,11 @@ function Start()
     var ep_force = (exit_point - transform.position).normalized;
     
     // Overall force experienced is a linear combination of the above terms.
-    var nr_gain = 0.5;
+    var nr_gain = 1.0;
     var nb_gain = 0.5;
-    var vm_gain = 0.2;
-    var ur_gain = 3;
-    var ep_gain = 0.2;
+    var vm_gain = 0.7;
+    var ur_gain = 5;
+    var ep_gain = 1.0;
     var total_force = nr_gain * nr_force
         + nb_gain * nb_force
         + vm_gain * vm_force
