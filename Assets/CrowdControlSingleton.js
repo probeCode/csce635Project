@@ -10,7 +10,7 @@ function Awake() {
     people = new Array();
 	
     // Fill the people array.
-	var num_people = 30;
+	var num_people = 60;
 	for(var i = 0; i < num_people; i++)
 	{
 		// Create a new cylinder.
